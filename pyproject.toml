@@ -1,0 +1,22 @@
+[project]
+name = "cpfn"
+version = "0.1.0"
+description = "cpfn Python package"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { file = "LICENCE" }
+authors = [ { name = "tedescolor" } ]
+dependencies = [
+	"numpy==2.4.1",
+]
+
+[project.urls]
+"Homepage" = ""
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
