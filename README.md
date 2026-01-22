@@ -28,8 +28,14 @@ import torch
 from cpfn import CPFN
 import matplotlib.pyplot as plt
 import numpy as np
-# device
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+# 0. Hardware Selection (CUDA for NVIDIA, MPS for Apple Silicon, or CPU)
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+elif torch.backends.mps.is_available():
+    device = torch.device("mps")
+else:
+    device = torch.device("cpu")
 
 # 1. Define Synthetic Ground Truth (Branching Function)
 def true_sample(x):
