@@ -131,10 +131,10 @@ class CPFN(nn.Module):
             loss.backward()
             opt.step()
 
-        return self
-
     def freeze(self):
         for p in self.parameters():
             p.requires_grad_(False)
         self.eval()
-        return self
+
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
