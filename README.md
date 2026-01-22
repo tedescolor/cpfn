@@ -12,7 +12,7 @@ Compact, importable implementation of a Conditional Push-Forward Neural Network 
 
 ### From source (development)
 ```bash
-git clone https://github.com/your-username/cpfn.git
+git clone https://github.com/tedescolor/cpfn.git
 cd cpfn
 pip install -e .
 ```
