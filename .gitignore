@@ -26,3 +26,7 @@ build/
 # OS files
 .DS_Store
 Thumbs.db
+
+
+# auxiliary files
+requirements_backup.txt

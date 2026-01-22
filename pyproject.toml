@@ -13,10 +13,14 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = ""
+"Repository" = "https://github.com/tedescolor/cpfn"
+"Paper" = "https://arxiv.org/pdf/2511.14455"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.setuptools]
+packages = ["cpfn"]
+
+[tool.setuptools.package-dir]
+"" = "src"
 
 [build-system]
 requires = ["setuptools >= 77.0.3"]
