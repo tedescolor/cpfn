@@ -34,7 +34,7 @@ model.to(device)
 # train (short example)
 model.fit(xs, ys, epochs=1000, lr=1e-3, m=30, h0=5e-2)
 
-#frezee the model 
+#freeze the model 
 model.freeze()
 
 # sample conditional draws
