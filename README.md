@@ -34,6 +34,9 @@ model.to(device)
 # train (short example)
 model.fit(xs, ys, epochs=1000, lr=1e-3, m=30, h0=5e-2)
 
+#frezee the model 
+model.freeze()
+
 # sample conditional draws
 samples = model.sample_conditional(xs[:10], num_samples=50, seed=42)
 print(samples.shape)  # (10, 50, 1)
