@@ -1,13 +1,15 @@
 [project]
 name = "cpfn"
 version = "0.1.0"
-description = "cpfn Python package"
+description = "Conditional Push-Forward Neural Network estimator"
 readme = "README.md"
 requires-python = ">=3.8"
 license = { file = "LICENCE" }
 authors = [ { name = "tedescolor" } ]
 dependencies = [
-	"numpy==2.4.1",
+	"torch>=2.0",
+	"numpy>=1.20",
+	"tqdm>=4.60",
 ]
 
 [project.urls]
