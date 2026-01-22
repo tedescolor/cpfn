@@ -1,2 +1,5 @@
 pip freeze > requirements.txt
 
+%matplotlib qt   # or %matplotlib tk on Windows
+# then reproduce the plotting commands and call:
+plt.show()
