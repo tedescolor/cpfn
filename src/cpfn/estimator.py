@@ -4,6 +4,7 @@ from typing import Optional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from tqdm import tqdm
 
 
 class MLP(nn.Module):
@@ -119,7 +120,8 @@ class CPFN(nn.Module):
 
         opt = torch.optim.Adam([p for p in self.parameters() if p.requires_grad], lr=lr)
 
-        for _ in range(epochs):
+        pbar = tqdm(range(epochs), desc="Training CPFN")
+        for epoch in pbar:
             self.train()
             opt.zero_grad()
             u = self._sample_u(n, m, device=device)
@@ -130,6 +132,14 @@ class CPFN(nn.Module):
             loss = -(torch.log(mc + self.delta)).mean()
             loss.backward()
             opt.step()
+            
+            # Update progress bar with loss and bandwidth info
+            eps_vals = self.eps().detach().cpu().numpy()
+            eps_str = ", ".join([f"{e:.2e}" for e in eps_vals])
+            pbar.set_postfix({
+                "loss": f"{loss.item():.4e}",
+                "bandwidth": eps_str
+            })
 
     def freeze(self):
         for p in self.parameters():
