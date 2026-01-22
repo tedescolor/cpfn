@@ -1,6 +1,6 @@
 # CPFN — Conditional Push-Forward Neural Network
 
-Compact, importable implementation of a Conditional Push-Forward Neural Network (CPFN) estimator, with a minimal API and a small smoke test.
+Compact, importable implementation of a Conditional Push-Forward Neural Network (CPFN) estimator. 
 
 **Paper:** https://arxiv.org/pdf/2511.14455
 
