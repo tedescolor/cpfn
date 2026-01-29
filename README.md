@@ -28,6 +28,7 @@ import torch
 import matplotlib.pyplot as plt
 import numpy as np
 import random
+from cpfn import CPFN
 
 # 0. Hardware Selection (CUDA for NVIDIA, MPS for Apple Silicon, or CPU) and Reproducibility
 if torch.cuda.is_available():
