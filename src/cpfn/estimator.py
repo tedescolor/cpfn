@@ -89,35 +89,38 @@ class CPFN(nn.Module):
 
     def logdensity(self, xs: torch.Tensor, ys : torch.Tensor, m : int = 30, tilted : bool = False):
         if(self._istraining or (isinstance(xs, torch.Tensor) and isinstance(ys, torch.Tensor))):
+            xs_, ys_ = xs.reshape(-1, self.d), ys.reshape(-1, self.q)
             delta = self.delta if tilted else 1e-15
-            u = self._sample_u(xs.shape[0], m, device=xs.device)
-            yhat = self.forward(xs, u)
-            residuals = (ys[:, None, :] - yhat)
+            u = self._sample_u(xs_.shape[0], m, device=xs.device)
+            yhat = self.forward(xs_, u)
+            residuals = (ys_[:, None, :] - yhat)
             eps = self.eps()
             zs = residuals / eps
             rs = zs.pow(2).sum(dim=-1)
             exponents = -0.5 * rs - 0.5 * self.q * math.log(2.0 * math.pi) - torch.log(eps).sum() - math.log(m) - math.log(delta)
             shape = list(exponents.shape)
             shape[1] = 1
-            return torch.logsumexp(torch.cat([exponents, torch.zeros(*shape, device = xs.device)], dim=1), dim=1) + math.log(delta)   
+            logd = torch.logsumexp(torch.cat([exponents, torch.zeros(*shape, device = xs.device)], dim=1), dim=1) + math.log(delta)  
+            return logd if(len(xs.shape)==2 or xs_.shape[0]>1 or len(ys.shape)==2 or ys_.shape[0]>1) else logd[0] 
         else:
             device = self.eps().device
             return self.logdensity(torch.tensor(xs, device=device, dtype=torch.float32), torch.tensor(ys, device=device, dtype=torch.float32), m = m, tilted = tilted).cpu().numpy()
 
     def sample_conditional(self, x: torch.Tensor, num_samples: int = 1, seed: Optional[int] = None) -> torch.Tensor:
         if(self._istraining or isinstance(x, torch.Tensor)):
+            x_ = x.reshape(-1, self.d)
             if seed is not None:
                 g = torch.Generator(device=x.device)
                 g.manual_seed(int(seed))
                 if self.latent_dist == "uniform":
-                    u = torch.rand(x.shape[0], num_samples, self.q, generator=g, device=x.device)
+                    u = torch.rand(x_.shape[0], num_samples, self.q, generator=g, device=x.device)
                 else:
-                    u = torch.randn(x.shape[0], num_samples, self.q, generator=g, device=x.device)
+                    u = torch.randn(x_.shape[0], num_samples, self.q, generator=g, device=x.device)
             else:
-                u = self._sample_u(x.shape[0], num_samples, x.device)
+                u = self._sample_u(x_.shape[0], num_samples, x.device)
     
-            y = self.forward(x, u)
-            return y
+            y = self.forward(x_, u)
+            return y if(len(x.shape)==2 or self.q>1) else y.flatten()
         else:
             device = self.eps().device
             return self.sample_conditional(torch.tensor(x, device=device, dtype=torch.float32), num_samples = num_samples, seed = seed).cpu().numpy()
