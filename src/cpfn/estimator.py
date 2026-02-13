@@ -88,7 +88,7 @@ class CPFN(nn.Module):
         raise ValueError("u must have shape (n,q) or (n,m,q).")
 
     def logdensity(self, xs: torch.Tensor, ys : torch.Tensor, m : int = 30, tilted : bool = False):
-        if(self._istraining or (isinstance(xs, torch.Tensor) and isinstance(ys, torch.Tensor)):
+        if(self._istraining or (isinstance(xs, torch.Tensor) and isinstance(ys, torch.Tensor))):
             delta = self.delta if tilted else 1e-15
             u = self._sample_u(xs.shape[0], m, device=xs.device)
             yhat = self.forward(xs, u)
