@@ -52,6 +52,7 @@ class CPFN(nn.Module):
         self.d, self.q, self.r = d, q, r
         self.latent_dist = latent_dist
         self.delta = float(delta)
+        self._istraining = False
 
         self.varphi = MLP(d, r * q, hidden_width=width, hidden_layers=hidden_layers, final_activation=False)
         self.psi = MLP(q, r * q, hidden_width=width, hidden_layers=hidden_layers, final_activation=psi_final_activation)
@@ -73,47 +74,56 @@ class CPFN(nn.Module):
 
     def forward(self, x: torch.Tensor, u: torch.Tensor) -> torch.Tensor:
         if u.dim() == 2:
-            vx = self.varphi(x).view(-1, self.r, self.q)
-            vu = self.psi(u).view(-1, self.r, self.q)
+            vx = self.varphi(x).reshape(-1, self.r, self.q)
+            vu = self.psi(u).reshape(-1, self.r, self.q)
             return (vx * vu).sum(dim=1)
 
         if u.dim() == 3:
             n, m, q = u.shape
-            vx = self.varphi(x).view(n, self.r, self.q)
-            vu = self.psi(u.reshape(n * m, q)).view(n, m, self.r, self.q)
+            vx = self.varphi(x).reshape(n, self.r, self.q)
+            vu = self.psi(u.reshape(n * m, q)).reshape(n, m, self.r, self.q)
             y = (vx[:, None, :, :] * vu).sum(dim=2)
             return y
 
         raise ValueError("u must have shape (n,q) or (n,m,q).")
 
     def logdensity(self, xs: torch.Tensor, ys : torch.Tensor, m : int = 30, tilted : bool = False):
-        delta = self.delta if tilted else 1e-15
-        u = self._sample_u(xs.shape[0], m, device=xs.device)
-        yhat = self.forward(xs, u)
-        residuals = (ys[:, None, :] - yhat)
-        eps = self.eps()
-        zs = residuals / eps
-        rs = zs.pow(2).sum(dim=-1)
-        exponents = -0.5 * rs - 0.5 * self.q * math.log(2.0 * math.pi) - torch.log(eps).sum() - math.log(m) - math.log(delta)
-        shape = list(exponents.shape)
-        shape[1] = 1
-        return torch.logsumexp(torch.cat([exponents, torch.zeros(*shape, device = xs.device)], dim=1), dim=1) + math.log(delta)        
+        if(self._istraining or (isinstance(xs, torch.Tensor) and isinstance(ys, torch.Tensor)):
+            delta = self.delta if tilted else 1e-15
+            u = self._sample_u(xs.shape[0], m, device=xs.device)
+            yhat = self.forward(xs, u)
+            residuals = (ys[:, None, :] - yhat)
+            eps = self.eps()
+            zs = residuals / eps
+            rs = zs.pow(2).sum(dim=-1)
+            exponents = -0.5 * rs - 0.5 * self.q * math.log(2.0 * math.pi) - torch.log(eps).sum() - math.log(m) - math.log(delta)
+            shape = list(exponents.shape)
+            shape[1] = 1
+            return torch.logsumexp(torch.cat([exponents, torch.zeros(*shape, device = xs.device)], dim=1), dim=1) + math.log(delta)   
+        else:
+            device = self.eps().device
+            return self.logdensity(torch.tensor(xs, device=device), torch.tensor(ys, device=device), m = m, tilted = tilted).cpu().numpy()
 
     def sample_conditional(self, x: torch.Tensor, num_samples: int = 1, seed: Optional[int] = None) -> torch.Tensor:
-        if seed is not None:
-            g = torch.Generator(device=x.device)
-            g.manual_seed(int(seed))
-            if self.latent_dist == "uniform":
-                u = torch.rand(x.shape[0], num_samples, self.q, generator=g, device=x.device)
+        if(self._istraining or isinstance(x, torch.Tensor)):
+            if seed is not None:
+                g = torch.Generator(device=x.device)
+                g.manual_seed(int(seed))
+                if self.latent_dist == "uniform":
+                    u = torch.rand(x.shape[0], num_samples, self.q, generator=g, device=x.device)
+                else:
+                    u = torch.randn(x.shape[0], num_samples, self.q, generator=g, device=x.device)
             else:
-                u = torch.randn(x.shape[0], num_samples, self.q, generator=g, device=x.device)
+                u = self._sample_u(x.shape[0], num_samples, x.device)
+    
+            y = self.forward(x, u)
+            return y
         else:
-            u = self._sample_u(x.shape[0], num_samples, x.device)
-
-        y = self.forward(x, u)
-        return y
+            device = self.eps().device
+            return self.sample_conditional(torch.tensor(x, device=device), num_samples = num_samples, seed = seed).cpu().numpy()
 
     def fit(self, xs: torch.Tensor, ys: torch.Tensor, epochs: int = 1000, lr: float = 1e-3, m: int = 30, h0: float = 5e-2):
+        self._istraining = True
         device = xs.device
         n = xs.shape[0]
 
@@ -141,6 +151,7 @@ class CPFN(nn.Module):
                 "loss": f"{loss.item():.4e}",
                 "bandwidth": eps_str
             })
+        self._istraining = False
 
     def freeze(self):
         for p in self.parameters():
