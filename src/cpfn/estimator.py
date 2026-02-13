@@ -102,7 +102,7 @@ class CPFN(nn.Module):
             return torch.logsumexp(torch.cat([exponents, torch.zeros(*shape, device = xs.device)], dim=1), dim=1) + math.log(delta)   
         else:
             device = self.eps().device
-            return self.logdensity(torch.tensor(xs, device=device), torch.tensor(ys, device=device), m = m, tilted = tilted).cpu().numpy()
+            return self.logdensity(torch.tensor(xs, device=device, dtype=torch.float32), torch.tensor(ys, device=device, dtype=torch.float32), m = m, tilted = tilted).cpu().numpy()
 
     def sample_conditional(self, x: torch.Tensor, num_samples: int = 1, seed: Optional[int] = None) -> torch.Tensor:
         if(self._istraining or isinstance(x, torch.Tensor)):
@@ -120,7 +120,7 @@ class CPFN(nn.Module):
             return y
         else:
             device = self.eps().device
-            return self.sample_conditional(torch.tensor(x, device=device), num_samples = num_samples, seed = seed).cpu().numpy()
+            return self.sample_conditional(torch.tensor(x, device=device, dtype=torch.float32), num_samples = num_samples, seed = seed).cpu().numpy()
 
     def fit(self, xs: torch.Tensor, ys: torch.Tensor, epochs: int = 1000, lr: float = 1e-3, m: int = 30, h0: float = 5e-2):
         if(isinstance(xs, torch.Tensor) and isinstance(ys, torch.Tensor)):
@@ -155,7 +155,7 @@ class CPFN(nn.Module):
             self._istraining = False
         else:
             device = self.eps().device
-            self.fit(torch.tensor(xs, device=device), torch.tensor(ys, device=device), epochs = epochs, lr = lr, m = m, h0 = h0)
+            self.fit(torch.tensor(xs, device=device, dtype=torch.float32), torch.tensor(ys, device=device, dtype=torch.float32), epochs = epochs, lr = lr, m = m, h0 = h0)
 
     def freeze(self):
         for p in self.parameters():
