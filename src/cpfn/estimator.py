@@ -123,35 +123,38 @@ class CPFN(nn.Module):
             return self.sample_conditional(torch.tensor(x, device=device), num_samples = num_samples, seed = seed).cpu().numpy()
 
     def fit(self, xs: torch.Tensor, ys: torch.Tensor, epochs: int = 1000, lr: float = 1e-3, m: int = 30, h0: float = 5e-2):
-        self._istraining = True
-        device = xs.device
-        n = xs.shape[0]
-
-        with torch.no_grad():
-            eps0 = torch.tensor([h0] * self.q, device=device, dtype=torch.float32)
-            try:
-                self._eps_param.copy_(torch.log(torch.expm1(eps0)))
-            except Exception:
-                pass
-
-        opt = torch.optim.Adam([p for p in self.parameters() if p.requires_grad], lr=lr)
-
-        pbar = tqdm(range(epochs), desc="Training CPFN")
-        for epoch in pbar:
-            self.train()
-            opt.zero_grad()
-            loss = -self.logdensity(xs, ys, m, tilted = True).mean()
-            loss.backward()
-            opt.step()
-            
-            # Update progress bar with loss and bandwidth info
-            eps_vals = self.eps().detach().cpu().numpy()
-            eps_str = ", ".join([f"{e:.2e}" for e in eps_vals])
-            pbar.set_postfix({
-                "loss": f"{loss.item():.4e}",
-                "bandwidth": eps_str
-            })
-        self._istraining = False
+        if(isinstance(xs, torch.Tensor) and isinstance(ys, torch.Tensor)):
+            self._istraining = True
+            device = xs.device
+            n = xs.shape[0]
+    
+            with torch.no_grad():
+                eps0 = torch.tensor([h0] * self.q, device=device, dtype=torch.float32)
+                try:
+                    self._eps_param.copy_(torch.log(torch.expm1(eps0)))
+                except Exception:
+                    pass
+    
+            opt = torch.optim.Adam([p for p in self.parameters() if p.requires_grad], lr=lr)
+    
+            pbar = tqdm(range(epochs), desc="Training CPFN")
+            for epoch in pbar:
+                self.train()
+                opt.zero_grad()
+                loss = -self.logdensity(xs, ys, m, tilted = True).mean()
+                loss.backward()
+                opt.step()
+                
+                # Update progress bar with loss and bandwidth info
+                eps_vals = self.eps().detach().cpu().numpy()
+                eps_str = ", ".join([f"{e:.2e}" for e in eps_vals])
+                pbar.set_postfix({
+                    "loss": f"{loss.item():.4e}",
+                    "bandwidth": eps_str
+                })
+            self._istraining = False
+        else:
+            self.fit(torch.tensor(xs, device=device), torch.tensor(ys, device=device), epochs = epochs, lr = lr, m = m, h0 = h0)
 
     def freeze(self):
         for p in self.parameters():
