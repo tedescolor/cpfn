@@ -6,25 +6,22 @@ import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
 
+gelu = nn.GELU()
 
 class MLP(nn.Module):
-    def __init__(self, in_dim: int, out_dim: int, hidden_width: int = 50, hidden_layers: int = 3, final_activation: bool = False):
+    def __init__(self, in_dim: int, out_dim: int, hidden_width: int = 50, hidden_layers: int = 3, activation: function = gelu, final_activation: bool = False):
         super().__init__()
         layers = []
         d = in_dim
         for _ in range(hidden_layers):
             layers.append(nn.Linear(d, hidden_width))
-            layers.append(nn.GELU())
+            layers.append(activation)
             d = hidden_width
         layers.append(nn.Linear(d, out_dim))
+        if(final_activation):
+            layers.append(activation)
         self.net = nn.Sequential(*layers)
         self.final_activation = final_activation
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        y = self.net(x)
-        if self.final_activation:
-            y = F.gelu(y)
-        return y
 
 
 class CPFN(nn.Module):
