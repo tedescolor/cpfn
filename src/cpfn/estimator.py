@@ -9,7 +9,7 @@ from tqdm import tqdm
 gelu = nn.GELU()
 
 class MLP(nn.Module):
-    def __init__(self, in_dim: int, out_dim: int, hidden_width: int = 50, hidden_layers: int = 3, activation: function = gelu, final_activation: bool = False):
+    def __init__(self, in_dim: int, out_dim: int, hidden_width: int = 50, hidden_layers: int = 3, activation: nn.Module = gelu, final_activation: bool = False):
         super().__init__()
         layers = []
         d = in_dim
