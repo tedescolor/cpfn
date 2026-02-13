@@ -86,12 +86,18 @@ class CPFN(nn.Module):
 
         raise ValueError("u must have shape (n,q) or (n,m,q).")
 
-    def _gaussian_kernel_eps(self, residual: torch.Tensor) -> torch.Tensor:
-        eps = self.eps().to(residual.device)
-        z = residual / eps
-        quad = (z * z).sum(dim=-1)
-        log_norm = -0.5 * self.q * math.log(2.0 * math.pi) - torch.log(eps).sum()
-        return torch.exp(log_norm - 0.5 * quad)
+    def logdensity(self, xs: torch.Tensor, ys : torch.Tensor, m : int = 30, tilted : bool = False):
+        delta = self.delta if tilted else 1e-15
+        u = self._sample_u(xs.shape[0], m, device=xs.device)
+        yhat = self.forward(xs, u)
+        resid = (ys[:, None, :] - yhat)
+        eps = self.eps()
+        zs = residual / eps
+        rs = zs.pow(2).sum(dim=-1)
+        exponents = rs - -0.5 * self.q * math.log(2.0 * math.pi) - torch.log(eps).sum() - math.log(m) - math.log(delta)
+        shape = exponents.shape
+        shape[1] = 1
+        return torch.logsumexp(torch.cat([exponents, torch.zeros(shape, device = xs.device)], dim=1)) + math.log(delta)        
 
     def sample_conditional(self, x: torch.Tensor, num_samples: int = 1, seed: Optional[int] = None) -> torch.Tensor:
         if seed is not None:
@@ -124,12 +130,7 @@ class CPFN(nn.Module):
         for epoch in pbar:
             self.train()
             opt.zero_grad()
-            u = self._sample_u(n, m, device=device)
-            yhat = self.forward(xs, u)
-            resid = (ys[:, None, :] - yhat)
-            k = self._gaussian_kernel_eps(resid)
-            mc = k.mean(dim=1)
-            loss = -(torch.log(mc + self.delta)).mean()
+            loss = -self.logdensity(xs, ys, m, tilted = True).mean()
             loss.backward()
             opt.step()
             
