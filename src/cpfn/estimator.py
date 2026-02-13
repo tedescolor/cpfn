@@ -23,6 +23,9 @@ class MLP(nn.Module):
         self.net = nn.Sequential(*layers)
         self.final_activation = final_activation
 
+    def forward(self, x: torch.Tensor):
+        return self.net(x)
+
 
 class CPFN(nn.Module):
     """Compact CPFN estimator suitable for import and use.
