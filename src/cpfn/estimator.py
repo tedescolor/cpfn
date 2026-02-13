@@ -95,9 +95,9 @@ class CPFN(nn.Module):
         zs = residuals / eps
         rs = zs.pow(2).sum(dim=-1)
         exponents = rs - -0.5 * self.q * math.log(2.0 * math.pi) - torch.log(eps).sum() - math.log(m) - math.log(delta)
-        shape = exponents.shape
+        shape = list(exponents.shape)
         shape[1] = 1
-        return torch.logsumexp(torch.cat([exponents, torch.zeros(shape, device = xs.device)], dim=1)) + math.log(delta)        
+        return torch.logsumexp(torch.cat([exponents, torch.zeros(*shape, device = xs.device)], dim=1)) + math.log(delta)        
 
     def sample_conditional(self, x: torch.Tensor, num_samples: int = 1, seed: Optional[int] = None) -> torch.Tensor:
         if seed is not None:
