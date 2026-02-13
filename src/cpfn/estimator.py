@@ -154,6 +154,7 @@ class CPFN(nn.Module):
                 })
             self._istraining = False
         else:
+            device = self.eps().device
             self.fit(torch.tensor(xs, device=device), torch.tensor(ys, device=device), epochs = epochs, lr = lr, m = m, h0 = h0)
 
     def freeze(self):
