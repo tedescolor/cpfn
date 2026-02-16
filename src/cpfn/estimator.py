@@ -167,30 +167,38 @@ class CPFN(nn.Module):
             return self.logdensity(torch.tensor(xs, device=device, dtype=torch.float32), torch.tensor(ys, device=device, dtype=torch.float32), m = m, tilted = tilted).cpu().numpy()
 
     def sample_conditional(self, x: torch.Tensor, num_samples: int = 1, seed: Optional[int] = None) -> torch.Tensor:
-        # Handles generation of y given x
         if(self._istraining or isinstance(x, torch.Tensor)):
             x_ = x.reshape(-1, self.d)
             x_ = self._standardize_x(x_)
             
-            # Handle random seeding
+            # Setup generator for reproducibility
+            g = None
             if seed is not None:
                 g = torch.Generator(device=x.device)
                 g.manual_seed(int(seed))
-                if self.latent_dist == "uniform":
-                    u = torch.rand(x_.shape[0], num_samples, self.q, generator=g, device=x.device)
-                else:
-                    u = torch.randn(x_.shape[0], num_samples, self.q, generator=g, device=x.device)
+
+            # Sample latent variable u
+            if self.latent_dist == "uniform":
+                u = torch.rand(x_.shape[0], num_samples, self.q, generator=g, device=x.device)
             else:
-                u = self._sample_u(x_.shape[0], num_samples, x.device)
+                u = torch.randn(x_.shape[0], num_samples, self.q, generator=g, device=x.device)
     
-            # Forward pass through the network
-            y = self.forward(x_, u)
-            # Rescale output to original domain
+            # Get location parameter (mean of the kernel)
+            y_loc = self.forward(x_, u)
+            
+            # Sample noise from Normal(0,1)
+            # We use the same generator 'g' if provided to ensure full reproducibility
+            noise = torch.randn(y_loc.shape, generator=g, device=x.device)
+
+            # Add kernel noise (bandwidth) *before* destandardization
+            # self.eps() is the learned bandwidth in standardized space
+            y = y_loc + self.eps() * noise
+
+            # Destandardize to get back to original data scale
             y = self._destandardize_y(y)
 
             return y if(len(x.shape)==2 or self.q>1) else y.flatten()
         else:
-            # Numpy fallback
             device = self.eps().device
             return self.sample_conditional(torch.tensor(x, device=device, dtype=torch.float32), num_samples = num_samples, seed = seed).cpu().numpy()
 
