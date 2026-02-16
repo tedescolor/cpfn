@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
+import copy
 
 gelu = nn.GELU()
 
@@ -202,51 +203,74 @@ class CPFN(nn.Module):
             device = self.eps().device
             return self.sample_conditional(torch.tensor(x, device=device, dtype=torch.float32), num_samples = num_samples, seed = seed).cpu().numpy()
 
-    def fit(self, xs: torch.Tensor, ys: torch.Tensor, epochs: int = 1000, lr: float = 1e-3, m: int = 30, h0: float = 5e-2):
+    def fit(self, xs: torch.Tensor, ys: torch.Tensor, epochs: int = 1000, lr: float = 1e-3, m: int = 30, h0: float = 5e-2, val_split: float = 0.1):
         if(isinstance(xs, torch.Tensor) and isinstance(ys, torch.Tensor)):
             self._istraining = True
             device = xs.device
-            n = xs.shape[0]
-    
-            # Pre-training initialization
+            
+            # --- Validation Split Logic ---
+            if val_split > 0:
+                indices = torch.randperm(xs.shape[0])
+                v_size = int(xs.shape[0] * val_split)
+                train_idx, val_idx = indices[v_size:], indices[:v_size]
+                xt, yt = xs[train_idx], ys[train_idx]
+                xv, yv = xs[val_idx], ys[val_idx]
+            else:
+                xt, yt = xs, ys
+                xv, yv = None, None
+
+            best_val_loss = float('inf')
+            best_state = None
+
+            # Pre-training initialization (Using xt/yt for stats)
             with torch.no_grad():
-                # Compute and store standardization statistics
-                self.x_mean = xs.mean(dim=0)
-                self.x_std = xs.std(dim=0) + 1e-10  # Epsilon for numerical stability
-                self.y_mean = ys.mean(dim=0)
-                self.y_std = ys.std(dim=0) + 1e-10  # Epsilon for numerical stability
-     
-                # Reset epsilon to h0
+                self.x_mean = xt.mean(dim=0)
+                self.x_std = xt.std(dim=0) + 1e-10
+                self.y_mean = yt.mean(dim=0)
+                self.y_std = yt.std(dim=0) + 1e-10
+                
                 eps0 = torch.tensor([h0] * self.q, device=device, dtype=torch.float32)
                 try:
                     self._eps_param.copy_(torch.log(torch.expm1(eps0)))
-                except Exception:
-                    pass
+                except: pass
 
-    
             opt = torch.optim.Adam([p for p in self.parameters() if p.requires_grad], lr=lr)
-    
             pbar = tqdm(range(epochs), desc="Training CPFN")
+            
             for epoch in pbar:
                 self.train()
                 opt.zero_grad()
-                # Loss is negative log likelihood
-                loss = -self.logdensity(xs, ys, m, tilted = True).mean()
+                loss = -self.logdensity(xt, yt, m, tilted=True).mean()
                 loss.backward()
                 opt.step()
                 
-                # Update progress bar with loss and bandwidth info
+                # --- Validation Check ---
+                curr_loss = loss.item()
+                if xv is not None:
+                    self.eval()
+                    with torch.no_grad():
+                        v_loss = -self.logdensity(xv, yv, m, tilted=False).mean().item()
+                        if v_loss < best_val_loss:
+                            best_val_loss = v_loss
+                            best_state = copy.deepcopy(self.state_dict())
+                        curr_loss = v_loss # Show validation loss in pbar
+
                 eps_vals = self.eps().detach().cpu().numpy()
                 eps_str = ", ".join([f"{e:.2e}" for e in eps_vals])
-                pbar.set_postfix({
-                    "loss": f"{loss.item():.4e}",
-                    "bandwidth": eps_str
-                })
+                pbar.set_postfix({"loss": f"{curr_loss:.4e}", "bw": eps_str})
+
+            # Restore best weights if validation was used
+            if best_state is not None:
+                self.load_state_dict(best_state)
+                print(f"Restored best model with validation loss: {best_val_loss:.4e}")
+                
             self._istraining = False
         else:
-            # Recursive call for numpy array inputs
+            # Recursive call for numpy array inputs (updated signature)
             device = self.eps().device
-            self.fit(torch.tensor(xs, device=device, dtype=torch.float32), torch.tensor(ys, device=device, dtype=torch.float32), epochs = epochs, lr = lr, m = m, h0 = h0)
+            self.fit(torch.tensor(xs, device=device, dtype=torch.float32), 
+                     torch.tensor(ys, device=device, dtype=torch.float32), 
+                     epochs=epochs, lr=lr, m=m, h0=h0, val_split=val_split)
 
     def freeze(self):
         # Freeze all parameters (prevent gradient updates)
