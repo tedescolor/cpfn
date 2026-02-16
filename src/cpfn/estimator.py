@@ -63,13 +63,12 @@ class CPFN(nn.Module):
         self.varphi = MLP(d, r * q, hidden_width=width, hidden_layers=hidden_layers, final_activation=False)
         self.psi = MLP(q, r * q, hidden_width=width, hidden_layers=hidden_layers, final_activation=psi_final_activation)
 
-        # Initialize bandwidth parameter epsilon
-        # Stored in unconstrained space (log(exp(eps) - 1)) to ensure positivity later
+        # We use exp() to ensuring positivity
         eps0 = torch.tensor([eps_init] * q, dtype=torch.float32)
         if learn_eps:
-            self._eps_param = nn.Parameter(torch.log(torch.expm1(eps0)))
+            self._eps_param = nn.Parameter(torch.log(eps0))
         else:
-            self.register_buffer("_eps_param", torch.log(torch.expm1(eps0)))
+            self.register_buffer("_eps_param", torch.log(eps0))
             self._eps_param.requires_grad_(False)
 
         # Standardization statistics (initialized as None, computed during fit)
@@ -79,8 +78,8 @@ class CPFN(nn.Module):
         self.register_buffer("y_std", None)
 
     def eps(self) -> torch.Tensor:
-        # Transform parameter back to positive domain using Softplus
-        return F.softplus(self._eps_param) + 1e-12
+        # CHANGE 2: Use exp() to ensure positivity (like dlroms with direct parameter)
+        return torch.exp(self._eps_param) + 1e-12
 
     def _sample_u(self, n: int, m: int, device: torch.device) -> torch.Tensor:
         # Sample latent variable u from defined prior
@@ -229,9 +228,10 @@ class CPFN(nn.Module):
                 self.y_mean = yt.mean(dim=0)
                 self.y_std = yt.std(dim=0) + 1e-10
                 
+                # CHANGE 3: Initialize eps in log space
                 eps0 = torch.tensor([h0] * self.q, device=device, dtype=torch.float32)
                 try:
-                    self._eps_param.copy_(torch.log(torch.expm1(eps0)))
+                    self._eps_param.copy_(torch.log(eps0))
                 except: pass
 
             opt = torch.optim.Adam([p for p in self.parameters() if p.requires_grad], lr=lr)
