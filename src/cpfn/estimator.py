@@ -278,5 +278,11 @@ class CPFN(nn.Module):
             p.requires_grad_(False)
         self.eval()
 
+    def unfreeze(self):
+        # Unfreeze all parameters (enable gradient updates)
+        for p in self.parameters():
+            p.requires_grad_(True)
+        self.train()
+
     def to(self, *args, **kwargs):
         super().to(*args, **kwargs)
