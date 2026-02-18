@@ -10,14 +10,7 @@ Compact, importable implementation of a Conditional Push-Forward Neural Network 
 
 ## Install
 
-### From source (development)
-```bash
-git clone https://github.com/tedescolor/cpfn.git
-cd cpfn
-pip install -e .
-```
-
-### From PyPI (when published)
+### From PyPI
 ```bash
 pip install cpfn
 ```
