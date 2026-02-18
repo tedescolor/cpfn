@@ -38,7 +38,7 @@ elif torch.backends.mps.is_available():
 else:
     device = torch.device("cpu")
 
-SEED = 42
+SEED = 43
 
 random.seed(SEED)
 np.random.seed(SEED)
@@ -48,7 +48,7 @@ torch.manual_seed(SEED)
 def true_sample(x):
     z = np.random.randn()  # Gaussian noise
     p = np.random.rand()   # Uniform switch
-    
+
     # Conditional logic: creates two paths for x > 0.5
     if x < 0.5 or p < 0.5:
         return 10 * x * (x - 0.5) * (1.5 - x) + z * 0.3 * (1.3 - x)
@@ -58,40 +58,31 @@ def true_sample(x):
 
 # 2. Generate Training Data
 ntrain = 500
-xs_np = np.random.rand(ntrain)
-ys_np = np.array([true_sample(x) for x in xs_np])
-
-# Convert to Tensors
-xs = torch.tensor(xs_np, dtype=torch.float32).reshape(-1, 1)
-ys = torch.tensor(ys_np, dtype=torch.float32).reshape(-1, 1)
-xs = xs.to(device)
-ys = ys.to(device)
+xs = np.random.rand(ntrain)
+ys = np.array([true_sample(x) for x in xs])
 
 # 3. Model Setup & Training
-model = CPFN(d=1, q=1, r=30, width=50, hidden_layers=3)
+model = CPFN(d=1, q=1, r=20, width=50, hidden_layers=3, delta=1e-15)
 model.to(device)
-model.fit(xs, ys, epochs=5000, lr=1e-3, m=50, h0=1e-2)
+model.fit(xs, ys,
+          epochs=3000,
+          lr=1e-3,
+          m=30,
+          h0=5e-2)
+
 model.freeze()
 
 # 4. Inference: Generate 1 sample for every x in training set
 # samples shape: (ntrain, 1, 1)
-samples = model.sample_conditional(xs, num_samples=1)
-ys_gen = samples.cpu().numpy().flatten()
+ys_gen = model.sample_conditional(xs, num_samples=1).flatten()
 
 # 5. Visualization
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
 
-ax1.scatter(xs_np, ys_np, alpha=0.6, s=15, label="Ground Truth")
+ax1.scatter(xs, ys, alpha=0.6, s=15, label="Ground Truth")
 ax1.set_title("Original Training Data")
 ax1.set_xlabel("x")
 ax1.set_ylabel("y")
-
-ax2.scatter(xs_np, ys_gen, color='orange', alpha=0.6, s=15, label="CPFN Sample")
-ax2.set_title("CPFN Generated Samples")
-ax2.set_xlabel("x")
-
-plt.tight_layout()
-plt.show()
 ```
 
 
