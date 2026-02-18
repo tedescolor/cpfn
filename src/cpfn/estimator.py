@@ -1,6 +1,6 @@
 import math
 from typing import Optional
-
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -268,8 +268,8 @@ class CPFN(nn.Module):
         else:
             # Recursive call for numpy array inputs (updated signature)
             device = self.eps().device
-            self.fit(torch.tensor(xs, device=device, dtype=torch.float32), 
-                     torch.tensor(ys, device=device, dtype=torch.float32), 
+            self.fit(torch.tensor(xs.astype(np.float32), device=device, dtype=torch.float32),
+                     torch.tensor(ys.astype(np.float32), device=device, dtype=torch.float32),
                      epochs=epochs, lr=lr, m=m, h0=h0, val_split=val_split)
 
     def freeze(self):
