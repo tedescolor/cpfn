@@ -31,7 +31,7 @@ import matplotlib.pyplot as plt
 # 1. Setup
 # ---------------------------------------------------------------------------
 
-SEED = 43
+SEED = 42
 random.seed(SEED)
 np.random.seed(SEED)
 torch.manual_seed(SEED)
@@ -77,7 +77,7 @@ def true_conditional_pdf(y, x):
     return 0.5 * gauss(y, mu1(x)) + 0.5 * gauss(y, mu2(x))
 
 
-N_TRAIN = 500
+N_TRAIN = 1000
 xs = np.random.rand(N_TRAIN)
 ys = np.array([sample_y(x) for x in xs])
 
