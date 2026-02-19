@@ -40,9 +40,10 @@ class CPFN(nn.Module):
     """
     def __init__(
         self,
-        d: int, # Input dimension (x)
-        q: int, # Output dimension (y)
-        r: int = 20, # Rank (latent factor dimension)
+        d: int,          # Input dimension (x)
+        q: int,          # Output dimension (y)
+        r: int = 20,     # Rank (latent factor dimension)
+        p: Optional[int] = None,  # Latent variable dimension (u); defaults to q if None
         width: int = 50,
         hidden_layers: int = 3,
         latent_dist: str = "normal", # Distribution for latent variable u
@@ -54,6 +55,7 @@ class CPFN(nn.Module):
     ):
         super().__init__()
         self.d, self.q, self.r = d, q, r
+        self.p = p if p is not None else q  # Latent dimension defaults to q
         self.latent_dist = latent_dist
         self.delta = float(delta)
         self._istraining = False
@@ -61,7 +63,7 @@ class CPFN(nn.Module):
         # Neural networks for the conditional (varphi) and latent (psi) components
         # Outputs are flattened matrices of shape (r * q)
         self.varphi = MLP(d, r * q, hidden_width=width, hidden_layers=hidden_layers, final_activation=False)
-        self.psi = MLP(q, r * q, hidden_width=width, hidden_layers=hidden_layers, final_activation=psi_final_activation)
+        self.psi = MLP(self.p, r * q, hidden_width=width, hidden_layers=hidden_layers, final_activation=psi_final_activation)
 
         # We use exp() to ensuring positivity
         eps0 = torch.tensor([eps_init] * q, dtype=torch.float32)
@@ -78,14 +80,13 @@ class CPFN(nn.Module):
         self.register_buffer("y_std", None)
 
     def eps(self) -> torch.Tensor:
-        # CHANGE 2: Use exp() to ensure positivity (like dlroms with direct parameter)
         return torch.exp(self._eps_param) + 1e-12
 
     def _sample_u(self, n: int, m: int, device: torch.device) -> torch.Tensor:
         # Sample latent variable u from defined prior
         if self.latent_dist == "uniform":
-            return torch.rand(n, m, self.q, device=device)
-        return torch.randn(n, m, self.q, device=device)
+            return torch.rand(n, m, self.p, device=device)
+        return torch.randn(n, m, self.p, device=device)
 
     def _standardize_x(self, x: torch.Tensor) -> torch.Tensor:
         """Standardize input x using stored statistics."""
@@ -106,7 +107,7 @@ class CPFN(nn.Module):
         return y * self.y_std + self.y_mean
 
     def forward(self, x: torch.Tensor, u: torch.Tensor) -> torch.Tensor:
-        # Case 1: u is 2D (Batch, Q) - Single sample per input
+        # Case 1: u is 2D (Batch, P) - Single sample per input
         if u.dim() == 2:
             # Reshape output to (Batch, Rank, OutputDim)
             vx = self.varphi(x).reshape(-1, self.r, self.q)
@@ -114,17 +115,17 @@ class CPFN(nn.Module):
             # Dot product interaction along the rank dimension
             return (vx * vu).sum(dim=1)
 
-        # Case 2: u is 3D (Batch, M_samples, Q) - Multiple samples per input
+        # Case 2: u is 3D (Batch, M_samples, P) - Multiple samples per input
         if u.dim() == 3:
-            n, m, q = u.shape
+            n, m, p = u.shape
             vx = self.varphi(x).reshape(n, self.r, self.q)
             # Process flattened u, then reshape back to (Batch, M_samples, Rank, Q)
-            vu = self.psi(u.reshape(n * m, q)).reshape(n, m, self.r, self.q)
+            vu = self.psi(u.reshape(n * m, p)).reshape(n, m, self.r, self.q)
             # Broadcasting vx to match m samples: (Batch, 1, Rank, Q) * (Batch, M, Rank, Q)
             y = (vx[:, None, :, :] * vu).sum(dim=2)
             return y
 
-        raise ValueError("u must have shape (n,q) or (n,m,q).")
+        raise ValueError("u must have shape (n,p) or (n,m,p).")
 
     def logdensity(self, xs: torch.Tensor, ys : torch.Tensor, m : int = 30, tilted : bool = False):
         # Check if inputs are tensors (or if training), otherwise delegate to numpy handler
@@ -179,9 +180,9 @@ class CPFN(nn.Module):
 
             # Sample latent variable u
             if self.latent_dist == "uniform":
-                u = torch.rand(x_.shape[0], num_samples, self.q, generator=g, device=x.device)
+                u = torch.rand(x_.shape[0], num_samples, self.p, generator=g, device=x.device)
             else:
-                u = torch.randn(x_.shape[0], num_samples, self.q, generator=g, device=x.device)
+                u = torch.randn(x_.shape[0], num_samples, self.p, generator=g, device=x.device)
     
             # Get location parameter (mean of the kernel)
             y_loc = self.forward(x_, u)
@@ -228,7 +229,6 @@ class CPFN(nn.Module):
                 self.y_mean = yt.mean(dim=0)
                 self.y_std = yt.std(dim=0) + 1e-10
                 
-                # CHANGE 3: Initialize eps in log space
                 eps0 = torch.tensor([h0] * self.q, device=device, dtype=torch.float32)
                 try:
                     self._eps_param.copy_(torch.log(eps0))
