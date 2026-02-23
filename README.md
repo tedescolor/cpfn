@@ -8,6 +8,7 @@ Compact, importable implementation of a Conditional Push-Forward Neural Network 
 - Provide a lightweight `CPFN` class for estimating conditional generators.
 - Expose a simple API for training and sampling.
 
+
 ## Install
 
 ### From PyPI
@@ -110,6 +111,7 @@ ax2.set_xlabel("x")
 
 fig.suptitle("Training Data vs. CPFN Samples", fontsize=13, fontweight="bold")
 plt.tight_layout()
+plt.savefig("assets/sample_comparison.png", dpi=150, bbox_inches="tight")
 plt.show()
 
 # ---------------------------------------------------------------------------
@@ -139,9 +141,16 @@ for ax, x0 in zip(axes, x_evals):
 axes[0].set_ylabel("Density")
 fig.suptitle("Conditional Density: CPFN vs. True", fontsize=13, fontweight="bold")
 plt.tight_layout()
+plt.savefig("assets/conditional_density.png", dpi=150, bbox_inches="tight")
 plt.show()
 ```
+## Results
 
+**Samples: Training Data vs. CPFN**
+![Sample Comparison](sample_comparison.png)
+
+**Conditional Density: CPFN vs. True**
+![Conditional Density](conditional_density.png)
 
 ## Tests
 Run the included pytest smoke test:
