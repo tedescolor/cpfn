@@ -145,10 +145,10 @@ plt.show()
 ## Results
 
 **Samples: Training Data vs. CPFN**
-![Sample Comparison](sample_comparison.png)
+![Sample Comparison](assets/sample_comparison.png)
 
 **Conditional Density: CPFN vs. True**
-![Conditional Density](conditional_density.png)
+![Conditional Density](assets/conditional_density.png)
 
 ## Tests
 Run the included pytest smoke test:
