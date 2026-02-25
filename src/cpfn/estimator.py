@@ -208,7 +208,7 @@ class CPFN(nn.Module):
             device = self.eps().device
             return self.sample_conditional(torch.tensor(x, device=device, dtype=torch.float32), num_samples = num_samples, seed = seed).cpu().numpy()
 
-    def fit(self, xs, ys, epochs=1000, lr=1e-3, m=30, h0=5e-2, val_split=0.0, batch_size=256):
+    def fit(self, xs: torch.Tensor, ys: torch.Tensor, epochs: int = 1000, lr: float = 1e-3, m: int = 30, h0: float = 5e-2, val_split: float = 0.0, batch_size: int = 256):
         if isinstance(xs, torch.Tensor) and isinstance(ys, torch.Tensor):
             self._istraining = True
             device = xs.device
