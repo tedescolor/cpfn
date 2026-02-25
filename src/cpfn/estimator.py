@@ -60,6 +60,9 @@ class CPFN(nn.Module):
         self.delta = float(delta)
         self._istraining = False
 
+        # Precompute rank scaling factor (1/sqrt(r)) to stabilize output variance across different ranks
+        self.register_buffer("rank_scale", torch.tensor(r ** -0.5))
+
         # Neural networks for the conditional (varphi) and latent (psi) components
         # Outputs are flattened matrices of shape (r * q)
         self.varphi = MLP(d, r * q, hidden_width=width, hidden_layers=hidden_layers, final_activation=False)
@@ -78,6 +81,7 @@ class CPFN(nn.Module):
         self.register_buffer("x_std", None)
         self.register_buffer("y_mean", None)
         self.register_buffer("y_std", None)
+
 
     def eps(self) -> torch.Tensor:
         return torch.exp(self._eps_param) + 1e-12
@@ -112,9 +116,9 @@ class CPFN(nn.Module):
             # Reshape output to (Batch, Rank, OutputDim)
             vx = self.varphi(x).reshape(-1, self.r, self.q)
             vu = self.psi(u).reshape(-1, self.r, self.q)
-            # Dot product interaction along the rank dimension
-            return (vx * vu).sum(dim=1)
-
+            # Dot product interaction along the rank dimension, scaled by 1/sqrt(r) to keep output variance O(1)
+            return (vx * vu).sum(dim=1) * self.rank_scale
+    
         # Case 2: u is 3D (Batch, M_samples, P) - Multiple samples per input
         if u.dim() == 3:
             n, m, p = u.shape
@@ -122,9 +126,10 @@ class CPFN(nn.Module):
             # Process flattened u, then reshape back to (Batch, M_samples, Rank, Q)
             vu = self.psi(u.reshape(n * m, p)).reshape(n, m, self.r, self.q)
             # Broadcasting vx to match m samples: (Batch, 1, Rank, Q) * (Batch, M, Rank, Q)
-            y = (vx[:, None, :, :] * vu).sum(dim=2)
+            # Scale by 1/sqrt(r) to stabilize variance
+            y = (vx[:, None, :, :] * vu).sum(dim=2) * self.rank_scale
             return y
-
+    
         raise ValueError("u must have shape (n,p) or (n,m,p).")
 
     def logdensity(self, xs: torch.Tensor, ys : torch.Tensor, m : int = 30, tilted : bool = False):
