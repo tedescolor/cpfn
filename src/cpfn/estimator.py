@@ -208,25 +208,35 @@ class CPFN(nn.Module):
             device = self.eps().device
             return self.sample_conditional(torch.tensor(x, device=device, dtype=torch.float32), num_samples = num_samples, seed = seed).cpu().numpy()
 
-    def fit(self, xs: torch.Tensor, ys: torch.Tensor, epochs: int = 1000, lr: float = 1e-3, m: int = 30, h0: float = 5e-2, val_split: float = 0.0, batch_size: int = 256, verbose: bool = True):
+    def fit(self, xs: torch.Tensor, ys: torch.Tensor, epochs: int = 1000, lr: float = 1e-3, m: int = 30, h0: float = 5e-2, val_split: float = 0.0, val_idx=None, batch_size: int = 256, verbose: bool = True):
         if isinstance(xs, torch.Tensor) and isinstance(ys, torch.Tensor):
             self._istraining = True
             device = xs.device
-    
+
             # --- Validation Split Logic ---
-            if val_split > 0:
-                indices = torch.randperm(xs.shape[0])
-                v_size = int(xs.shape[0] * val_split)
-                train_idx, val_idx = indices[v_size:], indices[:v_size]
+            if val_idx is not None:
+                # Explicit validation indices provided: use them directly,
+                # everything else becomes the training set.
+                val_idx = torch.as_tensor(val_idx, dtype=torch.long, device=device).reshape(-1)
+                n = xs.shape[0]
+                mask = torch.ones(n, dtype=torch.bool, device=device)
+                mask[val_idx] = False
+                train_idx = torch.arange(n, device=device)[mask]
                 xt, yt = xs[train_idx], ys[train_idx]
                 xv, yv = xs[val_idx], ys[val_idx]
+            elif val_split > 0:
+                indices = torch.randperm(xs.shape[0])
+                v_size = int(xs.shape[0] * val_split)
+                train_idx, v_idx = indices[v_size:], indices[:v_size]
+                xt, yt = xs[train_idx], ys[train_idx]
+                xv, yv = xs[v_idx], ys[v_idx]
             else:
                 xt, yt = xs, ys
                 xv, yv = None, None
-    
+
             best_val_loss = float('inf')
             best_state = None
-    
+
             with torch.no_grad():
                 self.x_mean = xt.mean(dim=0)
                 self.x_std = xt.std(dim=0) + 1e-10
@@ -236,14 +246,14 @@ class CPFN(nn.Module):
                 try:
                     self._eps_param.copy_(torch.log(eps0))
                 except: pass
-    
+
             opt = torch.optim.Adam([p for p in self.parameters() if p.requires_grad], lr=lr)
             pbar = tqdm(range(epochs), desc="Training CPFN", disable=not verbose)
             n_train = xt.shape[0]
-    
+
             for epoch in pbar:
                 self.train()
-    
+
                 # --- Mini-batch loop ---
                 perm = torch.randperm(n_train, device=device)
                 epoch_loss = 0.0
@@ -251,17 +261,17 @@ class CPFN(nn.Module):
                 for start in range(0, n_train, batch_size):
                     idx = perm[start:start + batch_size]
                     xb, yb = xt[idx], yt[idx]
-    
+
                     opt.zero_grad()
                     loss = -self.logdensity(xb, yb, m, tilted=True).mean()
                     loss.backward()
                     opt.step()
-    
+
                     epoch_loss += loss.item()
                     n_batches += 1
-    
+
                 epoch_loss /= n_batches
-    
+
                 # --- Validation Check ---
                 curr_loss = epoch_loss
                 if xv is not None:
@@ -272,22 +282,22 @@ class CPFN(nn.Module):
                             best_val_loss = v_loss
                             best_state = copy.deepcopy(self.state_dict())
                         curr_loss = v_loss
-    
+
                 eps_vals = self.eps().detach().cpu().numpy()
                 eps_str = ", ".join([f"{e:.2e}" for e in eps_vals])
                 pbar.set_postfix({"loss": f"{curr_loss:.4e}", "bw": eps_str})
-    
+
             if best_state is not None:
                 self.load_state_dict(best_state)
                 print(f"Restored best model with validation loss: {best_val_loss:.4e}")
-    
+
             self._istraining = False
         else:
             device = self.eps().device
             self.fit(
                 torch.tensor(xs.astype(np.float32), device=device, dtype=torch.float32),
                 torch.tensor(ys.astype(np.float32), device=device, dtype=torch.float32),
-                epochs=epochs, lr=lr, m=m, h0=h0, val_split=val_split, batch_size=batch_size
+                epochs=epochs, lr=lr, m=m, h0=h0, val_split=val_split, val_idx=val_idx, batch_size=batch_size
             )
     def freeze(self):
         # Freeze all parameters (prevent gradient updates)
